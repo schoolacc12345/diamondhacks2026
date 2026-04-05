@@ -8,7 +8,7 @@ import winsound
 import keyboard
 import webbrowser
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 
 # Load credentials from .env file
@@ -199,10 +199,16 @@ def distracted():
     global current_distraction_start
     
     if not session_active:
-        print("\n[Ignore] Phone unlocked, but no active focus session.")
+        print("\n[Ignore] Trigger detected, but no active focus session.")
         return {"status": "Timer inactive. Distractions allowed!"}, 200
 
-    print("\n[!] Active Session: Phone Unlocked! 10-Second Grace Period Started")
+    # Determine source (Manual vs Automated)
+    source = "AUTOMATED"
+    if request.is_json:
+        data = request.get_json()
+        source = data.get("source", "AUTOMATED").upper()
+
+    print(f"\n[!] Active Session: {source} Trigger! 10-Second Grace Period Started")
     distraction_timer_active = True
     
     # 10 second grace period loop
@@ -227,6 +233,13 @@ def distracted():
     # We wait for the AI to respond before triggering the alarm (User Request)
     decision = evaluate_distraction(minutes_worked, distraction_count)
     
+    # --- FINAL SAFETY CHECK ---
+    # If the user put the phone back down while the AI was thinking, ABORT.
+    if not distraction_timer_active:
+        print("[✅] Safety Abort: Phone return detected during AI thinking. Alarm skipped!")
+        current_distraction_start = 0 
+        return {"status": "Aborted at last second."}, 200
+
     # Trigger Alarm & UI now that AI is ready!
     arduino_pending_command = "R"
     print(f"🚀 PC: AI evaluation complete. Triggering Red Alarm!")
