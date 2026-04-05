@@ -3,6 +3,8 @@ import requests
 import time
 import json
 import subprocess
+import threading
+
 
 PC_URL = "http://192.168.137.1:5000" # Update this to your PC's IP
 
@@ -47,16 +49,24 @@ def main():
             if z < 8.0 and is_flat:
                 is_flat = False # Update state BEFORE network request to guarantee no spam
                 print(f"\n🚨 [PICKUP] Phone left the safe zone (Z={z:.2f}). Notifying PC...")
-                try:
-                    resp = requests.post(f"{PC_URL}/distracted", json={"source": "motion"}, timeout=2)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        print(f"📡 Server Response: {data}")
-                        if data.get("vibrate"):
-                            print("📳 Triggering Phone Vibration (2 sec)...")
-                            os.system("termux-vibrate -d 2000")
-                except Exception as e:
-                    print(f"⚠️ Connection Error: {e}")
+                
+                # Run the PC request in a background thread so the gravity loop doesn't pause
+                # while it waits 10+ seconds for the PC's Grace Period + AI generation!
+                def wait_for_alarm():
+                    try:
+                        resp = requests.post(f"{PC_URL}/distracted", json={"source": "motion"}, timeout=60)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            print(f"\n📡 Server Response: {data}")
+                            if data.get("vibrate"):
+                                print("📳 Triggering Phone Vibration (2 sec)...")
+                                os.system("termux-vibrate -f -d 2000")
+                                # Fallback if -f isn't supported by this Android version
+                                os.system("termux-vibrate -d 2000")
+                    except Exception as e:
+                        print(f"\n⚠️ Connection Error (Server took too long or is down): {e}")
+                
+                threading.Thread(target=wait_for_alarm, daemon=True).start()
                     
             # Back in safe bound -> Go to FLAT just once
             elif z > 8.0 and not is_flat:
