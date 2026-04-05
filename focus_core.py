@@ -8,7 +8,7 @@ import winsound
 import keyboard
 import webbrowser
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 
 # Load credentials from .env file
@@ -192,63 +192,91 @@ def evaluate_distraction(minutes_worked, count):
 # --- 2. THE SERVER COMPONENT ---
 # Grace period timer control
 distraction_timer_active = False
+grace_period_in_progress = False
 
 @app.route('/distracted', methods=['POST'])
 def distracted():
     global distraction_count, arduino_pending_command, distraction_timer_active, session_active
-    global current_distraction_start
+    global current_distraction_start, grace_period_in_progress
     
     if not session_active:
-        print("\n[Ignore] Phone unlocked, but no active focus session.")
+        print("\n[Ignore] Trigger detected, but no active focus session.")
         return {"status": "Timer inactive. Distractions allowed!"}, 200
 
-    print("\n[!] Active Session: Phone Unlocked! 10-Second Grace Period Started")
+    if grace_period_in_progress:
+        return {"status": "Already counting down"}, 200
+
+    # Determine source (Manual vs Automated)
+    source = "AUTOMATED"
+    if request.is_json:
+        data = request.get_json()
+        source = data.get("source", "AUTOMATED").upper()
+
+    grace_period_in_progress = True
+    print(f"\n[!] Active Session: {source} Trigger! 10-Second Grace Period Started")
     distraction_timer_active = True
     
-    # 10 second grace period loop
-    for _ in range(10):
-        if not distraction_timer_active:
-            print("[✅] Phone Locked: Grace period respected. False alarm cancelled.")
-            return {"status": "Grace period respected. No alarm."}, 200
-        time.sleep(1)
-        
-    if not distraction_timer_active:
-        return {"status": "Aborted"}, 200
-
-    # --- GRACE PERIOD EXPIRED ---
-    distraction_count += 1
-    minutes_worked = int((time.time() - session_start_time) / 60)
-    print(f"🚨 GRACE PERIOD EXPIRED! Distraction #{distraction_count}")
-    
-    # Log the exact second they officially stopped focusing
-    current_distraction_start = time.time()
-
-    # --- BLOCKING AI EVALUATION ---
-    # We wait for the AI to respond before triggering the alarm (User Request)
-    decision = evaluate_distraction(minutes_worked, distraction_count)
-    
-    # Trigger Alarm & UI now that AI is ready!
-    arduino_pending_command = "R"
-    print(f"🚀 PC: AI evaluation complete. Triggering Red Alarm!")
-    
-    ui_message = decision.get('ui_message', 'Get back to work!')
-    ui_queue.put(ui_message)
-
-    # Start the sound
     try:
-        winsound.PlaySound("alarm.wav", winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP)
-    except:
-        winsound.PlaySound("SystemHand", winsound.SND_ALIAS | winsound.SND_ASYNC | winsound.SND_LOOP)
+        # 10 second grace period loop
+        for _ in range(10):
+            if not distraction_timer_active:
+                print(f"[✅] {source} Safe: Grace period respected. False alarm cancelled.")
+                return {"status": "Grace period respected. No alarm."}, 200
+            time.sleep(1)
+            
+        if not distraction_timer_active:
+            return {"status": "Aborted"}, 200
 
-    # Returning 200 OK *syncs* the phone haptics with the AI and UI!
-    return {"status": "ALARM_TRIGGERED", "vibrate": True}, 200
+        # --- GRACE PERIOD EXPIRED ---
+        distraction_count += 1
+        minutes_worked = int((time.time() - session_start_time) / 60)
+        print(f"🚨 GRACE PERIOD EXPIRED! Distraction #{distraction_count}")
+        
+        # Log the exact second they officially stopped focusing
+        current_distraction_start = time.time()
+
+        # --- BLOCKING AI EVALUATION ---
+        # We wait for the AI to respond before triggering the alarm (User Request)
+        decision = evaluate_distraction(minutes_worked, distraction_count)
+        
+        # --- FINAL SAFETY CHECK ---
+        # If the user put the phone back down while the AI was thinking, ABORT.
+        if not distraction_timer_active:
+            print(f"[✅] Safety Abort: {source} safe state detected during AI thinking. Alarm skipped!")
+            current_distraction_start = 0 
+            return {"status": "Aborted at last second."}, 200
+
+        # Trigger Alarm & UI now that AI is ready!
+        arduino_pending_command = "R"
+        print(f"🚀 PC: AI evaluation complete. Triggering Red Alarm!")
+        
+        ui_message = decision.get('ui_message', 'Get back to work!')
+        ui_queue.put(ui_message)
+
+        # Start the sound
+        try:
+            winsound.PlaySound("alarm.wav", winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP)
+        except:
+            winsound.PlaySound("SystemHand", winsound.SND_ALIAS | winsound.SND_ASYNC | winsound.SND_LOOP)
+
+        # Returning 200 OK *syncs* the phone haptics with the AI and UI!
+        return {"status": "ALARM_TRIGGERED", "vibrate": True}, 200
+
+    finally:
+        grace_period_in_progress = False
+
+@app.route('/test', methods=['GET'])
+def test_connection():
+    """Simple ping to verify the phone can reach the PC."""
+    print("📡 [NETWORK] Connectivity test: Phone reach successful!")
+    return {"status": "PC is online"}, 200
 
 @app.route('/locked', methods=['POST'])
 def locked():
     global distraction_timer_active
-    # If the user locks their phone, abort the timer!
-    distraction_timer_active = False
-    return {"status": "Phone Locked"}, 200
+    print("\n🔒 [PC SERVER] ABORT RECEIVED! Forcing timer shutdown.")
+    distraction_timer_active = False 
+    return {"status": "Aborted"}, 200
 
 @app.route('/arduino_poll', methods=['GET'])
 def arduino_poll():
@@ -331,12 +359,25 @@ def setup_ui():
     return root
 
 if __name__ == '__main__':
+    from webcam_sentry import WebcamSentry
+    
     print("\n=======================================")
     print(" FocusGrid Core System is ONLINE.")
-    print(" Mode: Arduino Polling Mode")
-    print(" PC IP Address: 192.168.137.1")
+    print(" Mode: AI-Automated Sentry")
+    
+    # NEW: Helpful IP finder for the phone
+    import socket
+    hostname = socket.gethostname()
+    ips = [ip for ip in socket.gethostbyname_ex(hostname)[2] if not ip.startswith("127.")]
+    print(f" PC IP Addresses: {', '.join(ips)}")
+    print(" -> Use one of these in your Phone's 'PC_URL'!")
+    
     print("\n -> Press CTRL+SHIFT+S anywhere to Start/Stop a session!")
     print("=======================================\n")
+    
+    # Start Webcam Sentry
+    sentry = WebcamSentry()
+    sentry.start()
     
     # Register global hotkey (suppress=True prevents 'Save As' popups in editors)
     keyboard.add_hotkey('ctrl+shift+s', toggle_session, suppress=True)
