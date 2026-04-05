@@ -145,6 +145,7 @@ class Webcam:
                     self.distracted = False
                     print("\n[📷] Webcam: User refocus detected.")
                     self._notify_server("locked")
+
                     
             if self.show_preview:
                 if self.distracted_start_time == 0:

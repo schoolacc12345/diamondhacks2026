@@ -57,8 +57,9 @@ def main():
                 is_flat = True # Update state BEFORE network request
                 print(f"\n✅ [PUTDOWN] Phone returned to safe zone (Z={z:.2f}). Cancelling...")
                 try:
-                    requests.post(f"{PC_URL}/locked", timeout=2)
+                    requests.post(f"{PC_URL}/locked", json={"source": "PHONE"}, timeout=2)
                 except Exception:
+
                     pass
                     
         except Exception:

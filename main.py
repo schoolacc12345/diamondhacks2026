@@ -202,82 +202,80 @@ def evaluate_distraction(minutes_worked, count):
         return {"severity": 1, "hardware_command": "R", "ui_message": "Focus, Richard!"}
 
 # --- 2. THE SERVER COMPONENT ---
-# Grace period timer control
-distraction_timer_active = False
-grace_period_in_progress = False
+# --- SENSOR LANE TRACKING ---
+# True means "Currently seeing a distraction", False means "All safe"
+sensor_states = {"WEBCAM": False, "PHONE": False}
+grace_period_in_progress = {"WEBCAM": False, "PHONE": False}
+
 
 @app.route('/distracted', methods=['POST'])
 def distracted():
-    global distraction_count, arduino_pending_command, distraction_timer_active, session_active
-    global current_distraction_start, grace_period_in_progress
+    global distraction_count, arduino_pending_command, session_active
+    global current_distraction_start, grace_period_in_progress, sensor_states
     
     if not session_active:
         print("\n[Ignore] Trigger detected, but no active focus session.")
         return {"status": "Timer inactive. Distractions allowed!"}, 200
 
-    if grace_period_in_progress:
-        return {"status": "Already counting down"}, 200
-
-    # Determine source (Manual vs Automated)
-    source = "AUTOMATED"
+    # Determine source (Standardize on WEBCAM / PHONE)
+    source = "WEBCAM"
     if request.is_json:
         data = request.get_json()
-        source = data.get("source", "AUTOMATED").upper()
+        raw_source = data.get("source", "WEBCAM").upper()
+        source = "PHONE" if raw_source in ["PHONE", "MOTION"] else "WEBCAM"
 
-    grace_period_in_progress = True
-    print(f"\n[!] Active Session: {source} Trigger! 10-Second Grace Period Started")
-    distraction_timer_active = True
+    if grace_period_in_progress.get(source):
+        return {"status": "Already counting down"}, 200
+
+    grace_period_in_progress[source] = True
+    sensor_states[source] = True # Mark this sensor as "in-trouble"
+    
+    print(f"\n[!] 🚦 LANE [{source}] Triggered! 10-Second Grace Period Started")
     
     try:
-        # 10 second grace period loop
+        # 10 second grace period loop: only checks its OWN sensor state
         for _ in range(10):
-            if not distraction_timer_active:
-                print(f"[✅] {source} Safe: Grace period respected. False alarm cancelled.")
+            if not sensor_states[source]:
+                print(f"[✅] Safe: Lane [{source}] grace period respected. Cancelled.")
                 return {"status": "Grace period respected. No alarm."}, 200
             time.sleep(1)
             
-        if not distraction_timer_active:
+        if not sensor_states[source]:
             return {"status": "Aborted"}, 200
 
         # --- GRACE PERIOD EXPIRED ---
         distraction_count += 1
         minutes_worked = int((time.time() - session_start_time) / 60)
-        print(f"🚨 GRACE PERIOD EXPIRED! Distraction #{distraction_count}")
+        print(f"🚨 LANE [{source}] EXPIRED! Distraction #{distraction_count}")
         
-        # Log the exact second they officially stopped focusing
         current_distraction_start = time.time()
 
         # --- BLOCKING AI EVALUATION ---
-        # We wait for the AI to respond before triggering the alarm (User Request)
         decision = evaluate_distraction(minutes_worked, distraction_count)
         
         # --- FINAL SAFETY CHECK ---
-        # If the user put the phone back down while the AI was thinking, ABORT.
-        if not distraction_timer_active:
-            print(f"[✅] Safety Abort: {source} safe state detected during AI thinking. Alarm skipped!")
+        if not sensor_states[source]:
+            print(f"[✅] Safety Abort: Lane [{source}] safe detected during AI thinking. Alarm skipped!")
             current_distraction_start = 0 
             return {"status": "Aborted at last second."}, 200
 
-        # Trigger Alarm & UI now that AI is ready!
-        arduino_pending_command = "PHONE" if source == "MOTION" else source 
-        print(f"🚀 PC: AI evaluation complete. Triggering {arduino_pending_command} Alarm!")
+        # Trigger Alarm
+        arduino_pending_command = source
+        print(f"🚀 PC: AI evaluation complete. Triggering {source} Alarm!")
 
-
-        
         ui_message = decision.get('ui_message', 'Get back to work!')
         ui_queue.put(ui_message)
 
-        # Start the sound
         try:
             winsound.PlaySound("alarm.wav", winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP)
         except:
             winsound.PlaySound("SystemHand", winsound.SND_ALIAS | winsound.SND_ASYNC | winsound.SND_LOOP)
 
-        # Returning 200 OK *syncs* the phone haptics with the AI and UI!
         return {"status": "ALARM_TRIGGERED", "vibrate": True}, 200
 
     finally:
-        grace_period_in_progress = False
+        grace_period_in_progress[source] = False
+
 
 @app.route('/test', methods=['GET'])
 def test_connection():
@@ -291,12 +289,18 @@ def remote_toggle():
     return {"status": "Toggled"}, 200
 
 @app.route('/locked', methods=['POST'])
-
 def locked():
-    global distraction_timer_active
-    print("\n🔒 [PC SERVER] ABORT RECEIVED! Forcing timer shutdown.")
-    distraction_timer_active = False 
-    return {"status": "Aborted"}, 200
+    global sensor_states
+    source = "WEBCAM"
+    if request.is_json:
+        data = request.get_json()
+        raw_source = data.get("source", "WEBCAM").upper()
+        source = "PHONE" if raw_source in ["PHONE", "MOTION"] else "WEBCAM"
+        
+    print(f"\n🔒 [PC SERVER] ABORT RECEIVED! Cancelling Lane [{source}].")
+    sensor_states[source] = False 
+    return {"status": f"Lane {source} aborted"}, 200
+
 
 @app.route('/arduino_poll', methods=['GET'])
 def arduino_poll():
@@ -319,11 +323,16 @@ def arduino_poll():
 
 @app.route('/snooze', methods=['GET'])
 def snooze_endpoint():
-    global arduino_pending_command, snooze_count
+    global arduino_pending_command, snooze_count, sensor_states
     global current_distraction_start, total_distracted_seconds
     
-    print(f"\n✋ PC: Physical Snooze Button Pressed! Aborting Alarm!")
+    print(f"\n✋ PC: Physical Snooze Button Pressed! Aborting ALL Alarms!")
     snooze_count += 1
+    
+    # Reset all sensor states on snooze
+    for key in sensor_states:
+        sensor_states[key] = False
+
     
     # Calculate exactly how many seconds they were distracted during this event
     if current_distraction_start > 0:
