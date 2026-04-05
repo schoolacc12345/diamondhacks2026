@@ -32,8 +32,9 @@ SUPABASE_HEADERS = {
 }
 
 # --- NEW: ARDUINO POLLING CACHE ---
-arduino_pending_command = "NONE"
+arduino_pending_command = "IDLE"
 arduino_poll_count = 0
+
 
 # Global session trackers
 session_active = False
@@ -130,7 +131,8 @@ def generate_web_dashboard(elapsed_secs, dist_secs, dist_count, snooze_count):
 
 def toggle_session():
     global session_active, session_start_time, distraction_count, snooze_count
-    global current_distraction_start, total_distracted_seconds
+    global current_distraction_start, total_distracted_seconds, arduino_pending_command
+
     if not session_active:
         # Start a new session
         session_active = True
@@ -139,6 +141,8 @@ def toggle_session():
         snooze_count = 0
         current_distraction_start = 0
         total_distracted_seconds = 0
+        total_distracted_seconds = 0
+        arduino_pending_command = "FOCUS" # Tell Arduino to show Heart Icon
         print("\n=======================================")
         print("🟢 [GLOBAL HOTKEY] FOCUS SESSION STARTED!")
         print("   Tracking is now ON.")
@@ -146,6 +150,8 @@ def toggle_session():
     else:
         # End the session
         session_active = False
+        arduino_pending_command = "IDLE" # Clear Arduino Matrix
+
         
         # If they end the session while distracted, tally the final seconds!
         if current_distraction_start > 0:
@@ -253,8 +259,10 @@ def distracted():
             return {"status": "Aborted at last second."}, 200
 
         # Trigger Alarm & UI now that AI is ready!
-        arduino_pending_command = "R"
-        print(f"🚀 PC: AI evaluation complete. Triggering Red Alarm!")
+        arduino_pending_command = "PHONE" if source == "MOTION" else source 
+        print(f"🚀 PC: AI evaluation complete. Triggering {arduino_pending_command} Alarm!")
+
+
         
         ui_message = decision.get('ui_message', 'Get back to work!')
         ui_queue.put(ui_message)
@@ -277,7 +285,13 @@ def test_connection():
     print("📡 [NETWORK] Connectivity test: Phone reach successful!")
     return {"status": "PC is online"}, 200
 
+@app.route('/toggle_session', methods=['GET'])
+def remote_toggle():
+    toggle_session()
+    return {"status": "Toggled"}, 200
+
 @app.route('/locked', methods=['POST'])
+
 def locked():
     global distraction_timer_active
     print("\n🔒 [PC SERVER] ABORT RECEIVED! Forcing timer shutdown.")
@@ -294,10 +308,14 @@ def arduino_poll():
 
     # Arduino asks "What should I do?"
     cmd = arduino_pending_command
-    # Clear it so it only does it once
-    if cmd != "NONE":
-        arduino_pending_command = "NONE"
+    
+    # If a distraction was cleared, set back to FOCUS icon if session still active
+    if cmd in ["WEBCAM", "PHONE"]:
+        # We don't clear it immediately, we let it stay until snooze or manual end
+        pass 
+    
     return jsonify({"command": cmd})
+
 
 @app.route('/snooze', methods=['GET'])
 def snooze_endpoint():
@@ -315,8 +333,12 @@ def snooze_endpoint():
         print(f"⏱️ Distraction lasted {int(dist_duration)} seconds.")
 
     
-    # Ask Arduino to turn green
-    arduino_pending_command = "G"
+    # Ask Arduino to turn green / show heart
+    if session_active:
+        arduino_pending_command = "FOCUS"
+    else:
+        arduino_pending_command = "IDLE"
+
     
     # Silence the Windows Audio Siren!
     winsound.PlaySound(None, winsound.SND_PURGE)

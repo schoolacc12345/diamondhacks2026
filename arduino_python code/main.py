@@ -3,40 +3,45 @@ import json
 import urllib.request
 from arduino.app_utils import App, Bridge
 
-PC_URL = "http://192.168.137.1:5000/arduino_poll"
+# --- CONFIGURATION ---
+# IMPORTANT: Update this with the IP printed by main.py on your PC!
+BASE_URL = "http://192.168.137.1:5000"
+# ---------------------
 
-# The state variable that the C++ sketch will constantly ask for
 current_matrix_state = "IDLE"
 
 def get_matrix_state():
-    """This function is exposed to the C++ Bridge"""
     global current_matrix_state
     return current_matrix_state
 
 def snooze_pressed():
-    """C++ calls this when the physical button is pressed!"""
-    print("🔘 PHYSICAL BUTTON PRESSED! Sending Snooze to PC...")
+    print("🔘 PHYSICAL BUTTON: Snooze!")
     try:
-        # PING THE PC TO SHUT OFF THE ALARM!
-        urllib.request.urlopen(f"{PC_URL.replace('/arduino_poll', '/snooze')}", timeout=2)
+        urllib.request.urlopen(f"{BASE_URL}/snooze", timeout=2)
     except Exception as e:
         print(f"Failed to snooze: {e}")
+    return "OK"
+
+def toggle_session():
+    print("🔘 PHYSICAL BUTTON: Long Press! Toggling Session...")
+    try:
+        # Ping the PC's test endpoint or a new toggle endpoint
+        # For simplicity, we can use a custom header or just a specific URL
+        urllib.request.urlopen(f"{BASE_URL}/toggle_session", timeout=2)
+    except Exception as e:
+        print(f"Failed to toggle: {e}")
     return "OK"
 
 def main_loop():
     global current_matrix_state
     try:
-        # Arduino asks the PC over Wi-Fi: "Do you have any commands for me?"
-        with urllib.request.urlopen(PC_URL, timeout=1) as response:
+        # Poll the PC for the current "Source-Aware" state
+        with urllib.request.urlopen(f"{BASE_URL}/arduino_poll", timeout=1) as response:
             data = json.loads(response.read().decode())
-            command = data.get("command", "NONE")
+            command = data.get("command", "IDLE")
             
-            if command == "R":
-                print("Wi-Fi Poll: Found 'R' command. State updated to RED!")
-                current_matrix_state = "RED"
-            elif command == "G":
-                print("Wi-Fi Poll: Found 'G' command. State updated to GREEN!")
-                current_matrix_state = "GREEN"
+            # The PC will now send back strings like "WEBCAM", "PHONE", "FOCUS", or "IDLE"
+            current_matrix_state = command
                 
     except Exception as e:
         pass
@@ -44,10 +49,10 @@ def main_loop():
     time.sleep(0.5)
 
 def init():
-    print("--- ARDUINO BRIDGE ENGINE ONLINE ---")
-    # Make the python function explicitly available to C++ via the Bridge!
+    print("--- ARDUINO MULTIVERSE BRIDGE ONLINE ---")
     Bridge.provide("get_matrix_state", get_matrix_state)
     Bridge.provide("snooze_pressed", snooze_pressed)
+    Bridge.provide("toggle_session", toggle_session)
 
 if __name__ == "__main__":
     init()
