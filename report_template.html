@@ -193,7 +193,7 @@
             </div>
             <div class="stat-card">
                 <div class="stat-value" id="distVal">{DISTRACTED_MINUTES}m {DISTRACTED_SECONDS}s</div>
-                <div class="stat-label" id="distLabel">Distracted ({TOTAL_DISTRACTIONS}x)</div>
+                <div class="stat-label" id="distLabel">Distracted</div>
             </div>
         </div>
 
@@ -290,7 +290,7 @@
             document.getElementById('elapsedVal').innerText = `${Math.floor(total/60)}m ${total%60}s`;
             document.getElementById('focusVal').innerText = `${Math.floor(focus/60)}m ${focus%60}s`;
             document.getElementById('distVal').innerText = `${Math.floor(dist/60)}m ${dist%60}s`;
-            document.getElementById('distLabel').innerText = `Distracted (${count}x)`;
+            document.getElementById('distLabel').innerText = `Distracted`;
 
             // Update Chart
             focusChart.data.datasets[0].data = [(focus/60.0).toFixed(2)];

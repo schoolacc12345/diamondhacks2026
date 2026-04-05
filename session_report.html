@@ -184,16 +184,16 @@
 
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-value" id="elapsedVal">2m 51s</div>
+                <div class="stat-value" id="elapsedVal">0m 3s</div>
                 <div class="stat-label">Session Elapsed</div>
             </div>
             <div class="stat-card" style="border-color: #bc8cff;">
-                <div class="stat-value" id="focusVal">1m 48s</div>
+                <div class="stat-value" id="focusVal">0m 3s</div>
                 <div class="stat-label">Session Focus</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" id="distVal">1m 2s</div>
-                <div class="stat-label" id="distLabel">Distracted (2x)</div>
+                <div class="stat-value" id="distVal">0m 0s</div>
+                <div class="stat-label" id="distLabel">Distracted</div>
             </div>
         </div>
 
@@ -203,7 +203,7 @@
                 <div class="stat-label">Total Lifetime Focus</div>
             </div>
             <div class="stat-card" style="background: rgba(188, 140, 255, 0.1);">
-                <div class="stat-value">20</div>
+                <div class="stat-value">21</div>
                 <div class="stat-label">Total Sessions Tracked</div>
             </div>
         </div>
@@ -243,7 +243,7 @@
 
     <script>
         // --- GLOBAL DATA ---
-        const historyData = [{"id": 20, "created_at": "2026-04-05T13:54:08.936094+00:00", "elapsed_seconds": 171, "distracted_seconds": 62, "distraction_count": 2, "snooze_count": 3}, {"id": 19, "created_at": "2026-04-05T13:49:02.727829+00:00", "elapsed_seconds": 165, "distracted_seconds": 10, "distraction_count": 2, "snooze_count": 2}, {"id": 18, "created_at": "2026-04-05T13:36:58.593896+00:00", "elapsed_seconds": 11, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 17, "created_at": "2026-04-05T13:30:49.743328+00:00", "elapsed_seconds": 3, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 16, "created_at": "2026-04-05T13:29:51.757474+00:00", "elapsed_seconds": 37, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 2}, {"id": 15, "created_at": "2026-04-05T13:29:07.027127+00:00", "elapsed_seconds": 44, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 14, "created_at": "2026-04-05T12:48:45.866986+00:00", "elapsed_seconds": 22, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 13, "created_at": "2026-04-05T12:37:17.272431+00:00", "elapsed_seconds": 471, "distracted_seconds": 60, "distraction_count": 2, "snooze_count": 6}, {"id": 12, "created_at": "2026-04-05T11:49:10.192206+00:00", "elapsed_seconds": 75, "distracted_seconds": 13, "distraction_count": 1, "snooze_count": 1}, {"id": 11, "created_at": "2026-04-05T11:45:09.917907+00:00", "elapsed_seconds": 174, "distracted_seconds": 5, "distraction_count": 3, "snooze_count": 0}, {"id": 10, "created_at": "2026-04-05T10:29:00.693353+00:00", "elapsed_seconds": 247, "distracted_seconds": 34, "distraction_count": 1, "snooze_count": 1}, {"id": 9, "created_at": "2026-04-05T10:21:24.136152+00:00", "elapsed_seconds": 54, "distracted_seconds": 35, "distraction_count": 1, "snooze_count": 1}, {"id": 8, "created_at": "2026-04-05T10:13:44.838139+00:00", "elapsed_seconds": 66, "distracted_seconds": 36, "distraction_count": 1, "snooze_count": 1}, {"id": 7, "created_at": "2026-04-05T10:12:34.025357+00:00", "elapsed_seconds": 50, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 6, "created_at": "2026-04-05T10:10:56.402537+00:00", "elapsed_seconds": 4, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 5, "created_at": "2026-04-05T10:10:42.091964+00:00", "elapsed_seconds": 2, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 4, "created_at": "2026-04-05T10:10:06.625024+00:00", "elapsed_seconds": 6, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 3, "created_at": "2026-04-05T10:08:43.468687+00:00", "elapsed_seconds": 54, "distracted_seconds": 37, "distraction_count": 1, "snooze_count": 1}, {"id": 2, "created_at": "2026-04-05T10:06:07.109765+00:00", "elapsed_seconds": 60, "distracted_seconds": 35, "distraction_count": 1, "snooze_count": 1}, {"id": 1, "created_at": "2026-04-05T10:03:03.624895+00:00", "elapsed_seconds": 79, "distracted_seconds": 0, "distraction_count": 1, "snooze_count": 1}];
+        const historyData = [{"id": 21, "created_at": "2026-04-05T13:55:51.070725+00:00", "elapsed_seconds": 3, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 20, "created_at": "2026-04-05T13:54:08.936094+00:00", "elapsed_seconds": 171, "distracted_seconds": 62, "distraction_count": 2, "snooze_count": 3}, {"id": 19, "created_at": "2026-04-05T13:49:02.727829+00:00", "elapsed_seconds": 165, "distracted_seconds": 10, "distraction_count": 2, "snooze_count": 2}, {"id": 18, "created_at": "2026-04-05T13:36:58.593896+00:00", "elapsed_seconds": 11, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 17, "created_at": "2026-04-05T13:30:49.743328+00:00", "elapsed_seconds": 3, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 16, "created_at": "2026-04-05T13:29:51.757474+00:00", "elapsed_seconds": 37, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 2}, {"id": 15, "created_at": "2026-04-05T13:29:07.027127+00:00", "elapsed_seconds": 44, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 14, "created_at": "2026-04-05T12:48:45.866986+00:00", "elapsed_seconds": 22, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 13, "created_at": "2026-04-05T12:37:17.272431+00:00", "elapsed_seconds": 471, "distracted_seconds": 60, "distraction_count": 2, "snooze_count": 6}, {"id": 12, "created_at": "2026-04-05T11:49:10.192206+00:00", "elapsed_seconds": 75, "distracted_seconds": 13, "distraction_count": 1, "snooze_count": 1}, {"id": 11, "created_at": "2026-04-05T11:45:09.917907+00:00", "elapsed_seconds": 174, "distracted_seconds": 5, "distraction_count": 3, "snooze_count": 0}, {"id": 10, "created_at": "2026-04-05T10:29:00.693353+00:00", "elapsed_seconds": 247, "distracted_seconds": 34, "distraction_count": 1, "snooze_count": 1}, {"id": 9, "created_at": "2026-04-05T10:21:24.136152+00:00", "elapsed_seconds": 54, "distracted_seconds": 35, "distraction_count": 1, "snooze_count": 1}, {"id": 8, "created_at": "2026-04-05T10:13:44.838139+00:00", "elapsed_seconds": 66, "distracted_seconds": 36, "distraction_count": 1, "snooze_count": 1}, {"id": 7, "created_at": "2026-04-05T10:12:34.025357+00:00", "elapsed_seconds": 50, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 6, "created_at": "2026-04-05T10:10:56.402537+00:00", "elapsed_seconds": 4, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 5, "created_at": "2026-04-05T10:10:42.091964+00:00", "elapsed_seconds": 2, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 4, "created_at": "2026-04-05T10:10:06.625024+00:00", "elapsed_seconds": 6, "distracted_seconds": 0, "distraction_count": 0, "snooze_count": 0}, {"id": 3, "created_at": "2026-04-05T10:08:43.468687+00:00", "elapsed_seconds": 54, "distracted_seconds": 37, "distraction_count": 1, "snooze_count": 1}, {"id": 2, "created_at": "2026-04-05T10:06:07.109765+00:00", "elapsed_seconds": 60, "distracted_seconds": 35, "distraction_count": 1, "snooze_count": 1}];
         
         const ctx = document.getElementById('focusChart').getContext('2d');
         let focusChart = new Chart(ctx, {
@@ -253,7 +253,7 @@
                 datasets: [
                     {
                         label: 'Pure Focus Time',
-                        data: [1.81],
+                        data: [0.05],
                         backgroundColor: 'rgba(88, 166, 255, 0.8)',
                         borderColor: '#58a6ff',
                         borderWidth: 1,
@@ -261,7 +261,7 @@
                     },
                     {
                         label: 'Distracted Time',
-                        data: [1.05],
+                        data: [0.0],
                         backgroundColor: 'rgba(248, 81, 73, 0.8)',
                         borderColor: '#f85149',
                         borderWidth: 1,
@@ -290,7 +290,7 @@
             document.getElementById('elapsedVal').innerText = `${Math.floor(total/60)}m ${total%60}s`;
             document.getElementById('focusVal').innerText = `${Math.floor(focus/60)}m ${focus%60}s`;
             document.getElementById('distVal').innerText = `${Math.floor(dist/60)}m ${dist%60}s`;
-            document.getElementById('distLabel').innerText = `Distracted (${count}x)`;
+            document.getElementById('distLabel').innerText = `Distracted`;
 
             // Update Chart
             focusChart.data.datasets[0].data = [(focus/60.0).toFixed(2)];
