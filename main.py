@@ -370,7 +370,7 @@ def setup_ui():
     return root
 
 if __name__ == '__main__':
-    from webcam_sentry import WebcamSentry
+    from webcam import Webcam
     
     print("\n=======================================")
     print(" FocusGrid Core System is ONLINE.")
@@ -387,7 +387,7 @@ if __name__ == '__main__':
     print("=======================================\n")
     
     # Start Webcam Sentry
-    sentry = WebcamSentry()
+    sentry = Webcam()
     sentry.start()
     
     # Register global hotkey (suppress=True prevents 'Save As' popups in editors)

@@ -1,3 +1,6 @@
+# initial manual phone test
+
+
 import os
 import requests
 import time

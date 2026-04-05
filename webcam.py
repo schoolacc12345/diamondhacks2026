@@ -8,7 +8,7 @@ import threading
 import requests
 import os
 
-class WebcamSentry:
+class Webcam:
     def __init__(self, endpoint_url="http://localhost:5000"):
         self.model_path = 'face_landmarker.task'
         self.endpoint_url = endpoint_url
