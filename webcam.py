@@ -8,7 +8,7 @@ import threading
 import requests
 import os
 
-class WebcamSentry:
+class Webcam:
     def __init__(self, endpoint_url="http://localhost:5000"):
         self.model_path = 'face_landmarker.task'
         self.endpoint_url = endpoint_url
@@ -174,8 +174,9 @@ class WebcamSentry:
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    sentry = WebcamSentry()
+    sentry = Webcam()
     sentry.start()
+
     print("Testing locally... Press ESC in the camera window to stop.")
     while sentry.running:
         time.sleep(1)
