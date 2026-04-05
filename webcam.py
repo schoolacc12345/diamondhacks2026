@@ -174,8 +174,9 @@ class Webcam:
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    sentry = WebcamSentry()
+    sentry = Webcam()
     sentry.start()
+
     print("Testing locally... Press ESC in the camera window to stop.")
     while sentry.running:
         time.sleep(1)
