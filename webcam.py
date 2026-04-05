@@ -22,6 +22,7 @@ class Webcam:
         self.thread = None
         
         # Initialize detector
+
         if not os.path.exists(self.model_path):
             print("⚠️ [Webcam Sentry] Model file missing. Attempting download...")
             self._download_model()
@@ -50,8 +51,9 @@ class Webcam:
             self.thread = threading.Thread(target=self._loop, daemon=True)
             self.thread.start()
             print("👁️ [Webcam Sentry] Initialized (Tasks API) and watching...")
-        
+            
     def stop(self):
+
         self.running = False
             
     def _notify_server(self, endpoint):
@@ -65,7 +67,14 @@ class Webcam:
     def _loop(self):
         cap = cv2.VideoCapture(0)
         
+        # --- NEW: DIAGNOSTIC ---
+        ret, frame = cap.read()
+        if ret:
+            h, w = frame.shape[:2]
+            print(f"👁️ [Webcam] Detection active. Hardware Res: {w}x{h}")
+        
         while self.running:
+
             success, image = cap.read()
             if not success:
                 time.sleep(0.1)
@@ -80,8 +89,9 @@ class Webcam:
             
             # Reset UI frame (to BGR for OpenCV display)
             display_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
-
+            
             is_looking = False
+
             pitch = 0
             yaw = 0
             
@@ -145,6 +155,7 @@ class Webcam:
                     self.distracted = False
                     print("\n[📷] Webcam: User refocus detected.")
                     self._notify_server("locked")
+
                     
             if self.show_preview:
                 if self.distracted_start_time == 0:
