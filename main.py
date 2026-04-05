@@ -3,14 +3,23 @@ import threading
 import requests
 import json
 import time
+import os
+import logging
 import queue
 import winsound
 import keyboard
 import webbrowser
-import os
-import logging
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from dotenv import load_dotenv
+
+
+
+
+
+
+
+
 
 # Silence Flask/Werkzeug "GET /arduino_poll" noise
 log = logging.getLogger('werkzeug')
@@ -19,9 +28,22 @@ log.setLevel(logging.ERROR)
 # Load credentials from .env file
 load_dotenv()
 
+# --- PREPARE DISTRACTIONS FOLDER ---
+DIST_DIR = os.path.join(os.getcwd(), "distractions")
+if not os.path.exists(DIST_DIR):
+    os.makedirs(DIST_DIR)
+    print(f"📁 Created distractions folder at: {DIST_DIR}")
+
 app = Flask(__name__)
 
+CORS(app) # Enable real-time polling from the report (file://)
+
+
 # --- SUPABASE CLOUD CONFIG ---
+
+
+
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_HEADERS = {
@@ -43,6 +65,10 @@ distraction_count = 0
 snooze_count = 0
 current_distraction_start = 0
 total_distracted_seconds = 0
+last_session_roast = "⏳ AI is analyzing your performance..."
+roast_ready = False
+
+
 
 def upload_analytics_to_cloud(elapsed_secs, dist_secs, dist_count, snooze_count):
     print("\n☁️ Pushing Edge Logs to Supabase Cloud...")
@@ -54,10 +80,22 @@ def upload_analytics_to_cloud(elapsed_secs, dist_secs, dist_count, snooze_count)
     }
     try:
         url = f"{SUPABASE_URL}/rest/v1/focus_sessions"
-        req = requests.post(url, json=payload, headers=SUPABASE_HEADERS, timeout=5)
-        print(f"✅ Supabase Cloud Upload Success! Status: {req.status_code}")
+        # We need the ID back so we can PATCH it later with the async roast!
+        headers = SUPABASE_HEADERS.copy()
+        headers["Prefer"] = "return=representation"
+        
+        req = requests.post(url, json=payload, headers=headers, timeout=5)
+        if req.status_code in [200, 201]:
+            data = req.json()
+            if isinstance(data, list) and len(data) > 0:
+                new_id = data[0].get('id')
+                print(f"✅ Supabase Cloud Upload Success! Session ID: {new_id}")
+                return new_id
+        return None
     except Exception as e:
         print("⚠️ Cloud Upload Failed:", e)
+        return None
+
 
 def get_lifetime_stats():
     print("📊 Fetching Historical Data from Cloud...")
@@ -85,7 +123,8 @@ def get_recent_sessions():
         print(f"History Error: {e}")
     return []
 
-def generate_web_dashboard(elapsed_secs, dist_secs, dist_count, snooze_count):
+def generate_web_dashboard(elapsed_secs, dist_secs, dist_count, snooze_count, new_id=None):
+
     focus_secs = max(0, elapsed_secs - dist_secs)
     
     try:
@@ -118,7 +157,16 @@ def generate_web_dashboard(elapsed_secs, dist_secs, dist_count, snooze_count):
         html = html.replace("{SESSION_COUNT}", str(life_sessions))
         html = html.replace("{SESSION_HISTORY_JSON}", json.dumps(history_data))
         
+        # --- NEW: CURRENT SESSION TAGGING ---
+        html = html.replace("{CURRENT_SESSION_ID}", str(new_id if new_id else 0))
+
+        
+        # Initial Placeholder (JS will update it)
+        html = html.replace("{AI_SUMMARY}", "⏳ AI is analyzing your performance...")
+
+        
         output_path = os.path.abspath("session_report.html")
+
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(html)
             
@@ -132,6 +180,7 @@ def generate_web_dashboard(elapsed_secs, dist_secs, dist_count, snooze_count):
 def toggle_session():
     global session_active, session_start_time, distraction_count, snooze_count
     global current_distraction_start, total_distracted_seconds, arduino_pending_command
+    global session_clips
 
     if not session_active:
         # Start a new session
@@ -158,34 +207,71 @@ def toggle_session():
             total_distracted_seconds += (time.time() - current_distraction_start)
             
         total_elapsed_seconds = (time.time() - session_start_time)
+
+        # 1. Edge-to-Cloud Upload (Get the ID first)
+        new_session_id = upload_analytics_to_cloud(total_elapsed_seconds, total_distracted_seconds, distraction_count, snooze_count)
+        
+        # --- NEW: ASYNC AI ROAST ---
+        global last_session_roast, roast_ready
+        last_session_roast = "⏳ AI is reviewing your session..."
+        roast_ready = False
+        
+        def run_async_roast(session_id):
+            global last_session_roast, roast_ready
+            try:
+                roast = generate_session_roast(total_elapsed_seconds, total_distracted_seconds, distraction_count)
+                
+                last_session_roast = roast
+                roast_ready = True
+                print("✅ AI Roast complete and ready!")
+                
+                # UPDATE SUPABASE with the final roast for historical memory
+                if session_id:
+                    patch_url = f"{SUPABASE_URL}/rest/v1/focus_sessions?id=eq.{session_id}"
+                    requests.patch(patch_url, json={"ai_roast": roast}, headers=SUPABASE_HEADERS, timeout=5)
+                    print(f"☁️ Synced AI Roast back to Supabase Session #{session_id}!")
+            except Exception as e:
+                print(f"❌ AI Roast async failure: {e}")
+                last_session_roast = "The AI is speechless after that performance."
+                roast_ready = True
+
+        threading.Thread(target=run_async_roast, args=(new_session_id,), daemon=True).start()
+
+        
         print("\n=======================================")
         print("🛑 [GLOBAL HOTKEY] FOCUS SESSION ENDED!")
         print("=======================================")
         
-        # 1. Edge-to-Cloud Upload
-        upload_analytics_to_cloud(total_elapsed_seconds, total_distracted_seconds, distraction_count, snooze_count)
-        
-        # 2. Generate and open Web Dashboard
-        generate_web_dashboard(total_elapsed_seconds, total_distracted_seconds, distraction_count, snooze_count)
+        # 2. Generate and open Web Dashboard INSTANTLY
+        generate_web_dashboard(total_elapsed_seconds, total_distracted_seconds, distraction_count, snooze_count, new_session_id)
+
+
+
+
 
 # Queue to safely pass messages from the Flask background thread to the Tkinter main thread
 ui_queue = queue.Queue()
 
 # --- 1. THE LOCAL AI ENGINE ---
-def evaluate_distraction(minutes_worked, count):
-    print("🧠 AI is evaluating the telemetry...")
+def evaluate_distraction(minutes_worked, count, source):
+    print(f"🧠 AI is evaluating the [{source}] telemetry...")
+    
+    source_context = "looking away from the webcam" if source == "WEBCAM" else "picking up their mobile phone"
+    
     system_prompt = f"""
-    You are the logic engine for a focus application. The user has been working for {minutes_worked} minutes. This is distraction number {count} during this session.
-    Evaluate their behavior.
-    If distraction_count is 1, severity is 1, command is 'R'.
-    If distraction_count is > 2, severity is 3, command is 'R'.
-    If severity is 3, set trigger_siren to true. Otherwise, false.
-    You MUST respond with ONLY a raw JSON object in this exact format:
+    You are a sarcastic but helpful focus coach for User.
+    Context: User has been working for {minutes_worked} minutes. This is distraction #{count}.
+    He is currently {source_context}.
+    
+    Your task:
+    1. Assess severity (1 if first distraction, 3 if >2).
+    2. Respond with a context-aware, slightly sassy or motivational message about specifically {source_context}.
+    
+    Format: You MUST respond with ONLY a raw JSON object:
     {{
         "severity": <int>,
-        "hardware_command": "<'R' or 'G'>",
-        "ui_message": "<A short, context-aware message to the user>",
-        "trigger_siren": <true or false>
+        "ui_message": "<Sassy message about {source}>",
+        "trigger_siren": <true if severity 3 else false>
     }}
     """
     try:
@@ -197,9 +283,47 @@ def evaluate_distraction(minutes_worked, count):
         }, timeout=30)
         return json.loads(response.json()['response'])
     except Exception as e:
-        print("AI Engine Error:", e)
-        # Fallback if Ollama times out
-        return {"severity": 1, "hardware_command": "R", "ui_message": "Focus, Richard!"}
+        msg = "Get back to work!" if source == "WEBCAM" else "Put the phone down!"
+        return {"severity": 1, "ui_message": msg, "trigger_siren": False}
+
+def generate_session_roast(elapsed_secs, dist_secs, dist_count):
+    print("🧠 Cloud AI (Gemini) is drafting your session roast...")
+    focus_secs = max(0, elapsed_secs - dist_secs)
+    print("🧠 Local AI (Ollama) is drafting your session roast...")
+    focus_secs = max(0, elapsed_secs - dist_secs)
+    
+    # Python handles the logic, AI just executes the persona
+    focus_percentage = (focus_secs / elapsed_secs) * 100 if elapsed_secs > 0 else 0
+    
+    if focus_percentage > 80:
+        instruction = "The session was GREAT (Focus > 80%). Give Richard a high-energy, motivational 'Toast' about his excellent focus. Do NOT roast him."
+    else:
+        instruction = "The session was HORRIBLE (Focus < 80%). Give Richard a hilariously sharp, sarcastic 'Roast' about how terrible his focus was. Be savage, but constructive."
+
+    prompt = f"""Summarize Richard's focus session:
+- Total Time: {int(elapsed_secs/60)} minutes
+- Focus Time: {int(focus_secs/60)} minutes
+- Distractions: {dist_count}
+
+Instruction: You are 'FocusG', a legendary productivity coach. {instruction}
+CRITICAL: Only provide the final response. Do NOT provide two options. Keep it under 3 sentences. Mention at least one specific stat."""
+    
+    try:
+        response = requests.post("http://localhost:11434/api/generate", json={
+            "model": "phi3",
+            "prompt": prompt,
+            "stream": False
+        }, timeout=30)
+        return response.json()['response'].strip()
+    except Exception as e:
+        print(f"⚠️ Ollama Roast Error: {e}")
+        return "You did... something. Keep it up, I guess."
+
+
+
+
+
+
 
 # --- 2. THE SERVER COMPONENT ---
 # --- SENSOR LANE TRACKING ---
@@ -251,7 +375,8 @@ def distracted():
         current_distraction_start = time.time()
 
         # --- BLOCKING AI EVALUATION ---
-        decision = evaluate_distraction(minutes_worked, distraction_count)
+        decision = evaluate_distraction(minutes_worked, distraction_count, source)
+
         
         # --- FINAL SAFETY CHECK ---
         if not sensor_states[source]:
@@ -264,6 +389,8 @@ def distracted():
         print(f"🚀 PC: AI evaluation complete. Triggering {source} Alarm!")
 
         ui_message = decision.get('ui_message', 'Get back to work!')
+
+
         ui_queue.put(ui_message)
 
         try:
@@ -300,6 +427,15 @@ def locked():
     print(f"\n🔒 [PC SERVER] ABORT RECEIVED! Cancelling Lane [{source}].")
     sensor_states[source] = False 
     return {"status": f"Lane {source} aborted"}, 200
+
+@app.route('/get_roast', methods=['GET'])
+def get_roast():
+    global last_session_roast, roast_ready
+    return jsonify({
+        "ready": roast_ready,
+        "roast": last_session_roast
+    })
+
 
 
 @app.route('/arduino_poll', methods=['GET'])
@@ -360,7 +496,8 @@ def snooze_endpoint():
 # --- 3. THE UI COMPONENT (Main Thread) ---
 def setup_ui():
     root = tk.Tk()
-    root.title("DISTRACTION ALERT")
+    root.title("EyeLockIn: Sentry Node")
+
     root.attributes('-fullscreen', True)
     root.attributes('-alpha', 0.85)
     root.configure(bg='red')
@@ -404,7 +541,7 @@ if __name__ == '__main__':
     from webcam import Webcam
     
     print("\n=======================================")
-    print(" FocusGrid Core System is ONLINE.")
+    print(" EyeLockIn Core System is ONLINE.")
     print(" Mode: AI-Automated Sentry")
     
     # NEW: Helpful IP finder for the phone
