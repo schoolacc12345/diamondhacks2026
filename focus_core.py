@@ -8,13 +8,16 @@ import winsound
 import keyboard
 import webbrowser
 import os
-from flask import Flask, jsonify
+from dotenv import load_dotenv
+
+# Load credentials from .env file
+load_dotenv()
 
 app = Flask(__name__)
 
 # --- SUPABASE CLOUD CONFIG ---
-SUPABASE_URL = "https://dnrfzjfdjiepoalanntq.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRucmZ6amZkamllcG9hbGFubnRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNzQxMjgsImV4cCI6MjA5MDk1MDEyOH0.oZojcY8BJDJ_OAkIZ1iPVDDh2E78dh7lPC45R-EUsyE"
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -93,11 +96,12 @@ def generate_web_dashboard(elapsed_secs, dist_secs, dist_count, snooze_count):
         html = html.replace("{SESSION_COUNT}", str(life_sessions))
         
         output_path = os.path.abspath("session_report.html")
-        with open(output_path, 'w') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             f.write(html)
             
         # Open the generated HTML in the default browser!
-        webbrowser.open(f"file:///{output_path}")
+        # Passing the path directly without the file:/// prefix prevents the download prompt
+        webbrowser.open(output_path)
         print("📊 Generated beautiful Web Dashboard!")
     except Exception as e:
         print("⚠️ Failed to generate web dash:", e)
@@ -176,6 +180,7 @@ distraction_timer_active = False
 @app.route('/distracted', methods=['POST'])
 def distracted():
     global distraction_count, arduino_pending_command, distraction_timer_active, session_active
+    global current_distraction_start
     
     if not session_active:
         print("\n[Ignore] Phone unlocked, but no active focus session.")
@@ -194,7 +199,7 @@ def distracted():
     if not distraction_timer_active:
         return {"status": "Aborted"}, 200
 
-    # If we get here, you stayed on your phone for >10 seconds!
+    # --- GRACE PERIOD EXPIRED ---
     distraction_count += 1
     minutes_worked = int((time.time() - session_start_time) / 60)
     print(f"🚨 GRACE PERIOD EXPIRED! Distraction #{distraction_count}")
@@ -202,25 +207,24 @@ def distracted():
     # Log the exact second they officially stopped focusing
     current_distraction_start = time.time()
 
-    # Synchronous AI evaluation
+    # --- BLOCKING AI EVALUATION ---
+    # We wait for the AI to respond before triggering the alarm (User Request)
     decision = evaluate_distraction(minutes_worked, distraction_count)
-
-    if decision.get('hardware_command') == 'R':
-        arduino_pending_command = "R"
-        print(f"🚀 PC: Queued 'R' command for the Arduino to pick up!")
-
+    
+    # Trigger Alarm & UI now that AI is ready!
+    arduino_pending_command = "R"
+    print(f"🚀 PC: AI evaluation complete. Triggering Red Alarm!")
+    
     ui_message = decision.get('ui_message', 'Get back to work!')
     ui_queue.put(ui_message)
-    
-    # [NEW] Blare a Custom Audio Alarm in the background endlessly!
-    # Make sure you have a file named "alarm.wav" in the FocusGrid folder!
+
+    # Start the sound
     try:
         winsound.PlaySound("alarm.wav", winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP)
-    except Exception as e:
-        # Fallback to the Windows error sound if 'alarm.wav' doesn't exist
+    except:
         winsound.PlaySound("SystemHand", winsound.SND_ALIAS | winsound.SND_ASYNC | winsound.SND_LOOP)
 
-    # Returning 200 OK *syncs* the phone haptics with the Arduino and UI!
+    # Returning 200 OK *syncs* the phone haptics with the AI and UI!
     return {"status": "ALARM_TRIGGERED", "vibrate": True}, 200
 
 @app.route('/locked', methods=['POST'])
@@ -318,8 +322,8 @@ if __name__ == '__main__':
     print("\n -> Press CTRL+SHIFT+S anywhere to Start/Stop a session!")
     print("=======================================\n")
     
-    # Register global hotkey
-    keyboard.add_hotkey('ctrl+shift+s', toggle_session)
+    # Register global hotkey (suppress=True prevents 'Save As' popups in editors)
+    keyboard.add_hotkey('ctrl+shift+s', toggle_session, suppress=True)
     
     # Run Flask in a background thread
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False), daemon=True).start()
