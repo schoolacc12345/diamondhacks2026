@@ -256,12 +256,18 @@ def distracted():
     # Returning 200 OK *syncs* the phone haptics with the AI and UI!
     return {"status": "ALARM_TRIGGERED", "vibrate": True}, 200
 
+@app.route('/test', methods=['GET'])
+def test_connection():
+    """Simple ping to verify the phone can reach the PC."""
+    print("📡 [NETWORK] Connectivity test: Phone reach successful!")
+    return {"status": "PC is online"}, 200
+
 @app.route('/locked', methods=['POST'])
 def locked():
     global distraction_timer_active
-    # If the user locks their phone, abort the timer!
-    distraction_timer_active = False
-    return {"status": "Phone Locked"}, 200
+    print("\n🔒 [PC SERVER] ABORT RECEIVED! Forcing timer shutdown.")
+    distraction_timer_active = False 
+    return {"status": "Aborted"}, 200
 
 @app.route('/arduino_poll', methods=['GET'])
 def arduino_poll():
@@ -346,8 +352,15 @@ def setup_ui():
 if __name__ == '__main__':
     print("\n=======================================")
     print(" FocusGrid Core System is ONLINE.")
-    print(" Mode: Arduino Polling Mode")
-    print(" PC IP Address: 192.168.137.1")
+    print(" Mode: AI-Automated Sentry")
+    
+    # NEW: Helpful IP finder for the phone
+    import socket
+    hostname = socket.gethostname()
+    ips = [ip for ip in socket.gethostbyname_ex(hostname)[2] if not ip.startswith("127.")]
+    print(f" PC IP Addresses: {', '.join(ips)}")
+    print(" -> Use one of these in your Phone's 'PC_URL'!")
+    
     print("\n -> Press CTRL+SHIFT+S anywhere to Start/Stop a session!")
     print("=======================================\n")
     

@@ -4,69 +4,71 @@ import time
 import json
 import subprocess
 
-PC_URL = "http://192.168.137.1:5000"
+PC_URL = "http://192.168.137.1:5000" # Update this to your PC's IP
 
 def get_gravity_z():
-    """Polls the gravity sensor once and returns the Z-axis value."""
+    """Polls the gravity sensor exactly once and returns the Z-axis value."""
     try:
-        # We use termux-sensor to get one reading of the gravity sensor
-        # Timeout added to prevent hanging if the sensor doesn't respond
-        raw_bytes = subprocess.check_output(["termux-sensor", "-n", "1", "-s", "gravity"], timeout=2)
+        raw_bytes = subprocess.check_output(["termux-sensor", "-n", "1", "-s", "gravity"], timeout=4)
         raw_text = raw_bytes.decode('utf-8').strip()
-        
-        # Handle cases where multiple readings are returned in one string
-        if "}{" in raw_text:
-            raw_text = raw_text.split("}{")[0] + "}"
-            
         data = json.loads(raw_text)
         
-        # Version-agnostic parsing
         if isinstance(data, dict):
-            # Try to find 'values' in any root key
-            for key in data:
-                if isinstance(data[key], dict) and "values" in data[key]:
-                    return data[key]["values"][2]
-                if key == "values": # Direct access
-                    return data["values"][2]
-        
-        return 9.8 # Fallback
+            if "gravity" in data and "values" in data["gravity"]:
+                return data["gravity"]["values"][2]
+            elif "values" in data:
+                return data["values"][2]
+            else:
+                for key in data:
+                    if isinstance(data[key], dict) and "values" in data[key]:
+                        return data[key]["values"][2]
+        return None
     except Exception as e:
-        # If this prints, we know the phone has a permission or package issue
-        print(f"\n[!] Sensor Access Error: {e} | Ensure 'termux-api' is installed.")
-        return 9.8 
+        return None 
 
 def main():
-    print("=== 🤖 AUTO-SENTRY: Phone Heartbeat Node ===")
-    print(f"Monitoring Gravity Sensors... Lay phone FLAT to begin.")
+    print("\n=== 🤖 AUTO-SENTRY: Stable Heartbeat Node ===")
+    print(f"Target PC: {PC_URL}\n")
     
-    is_distracted = False
+    # 1. The Explicit Boolean the user requested
+    is_flat = True 
     
     while True:
         try:
             z = get_gravity_z()
-            # LIVE CALIBRATION (helpful for judges too!)
-            print(f"Sensor Z: {z:.2f} | Status: {'[DISTRACTED]' if is_distracted else '[SAFE]'}", end="\r")
-            
-            # THE LOGIC FLIP:
-            # Below 8.0 = Handheld / Tilted
-            # Above 8.0 = On Desk / Flat
-            
-            if z < 8.0 and not is_distracted:
-                print(f"\n🚨 [PICKUP] Motion detected! Z={z:.2f}. Notifying PC...")
-                requests.post(f"{PC_URL}/distracted", json={"source": "motion"}, timeout=2)
-                is_distracted = True
+            if z is None:
+                continue
                 
-            elif z >= 8.0 and is_distracted:
-                print(f"\n✅ [PUTDOWN] Stability detected! Z={z:.2f}. Cancelling Alarm...")
-                # We send the locked signal to abort any active grace period
-                requests.post(f"{PC_URL}/locked", timeout=2)
-                is_distracted = False
-                
-        except Exception as e:
-            # If network fails, we don't flip 'is_distracted' so it retries next loop
-            pass 
+            print(f"Sensor Z: {z:.2f} | State: {'[FLAT]' if is_flat else '[NOT FLAT]'}      ", end="\r")
             
-        time.sleep(0.3) # Slightly faster polling for snappiness
+            # --- USER LOGIC: Switch states ONLY ONCE across bounds ---
+            
+            # Out of safe bound -> Go to NOT FLAT just once
+            if z < 8.0 and is_flat:
+                is_flat = False # Update state BEFORE network request to guarantee no spam
+                print(f"\n🚨 [PICKUP] Phone left the safe zone (Z={z:.2f}). Notifying PC...")
+                try:
+                    requests.post(f"{PC_URL}/distracted", json={"source": "motion"}, timeout=2)
+                except Exception:
+                    pass # Ignore connection errors to prevent pausing the loop
+                    
+            # Back in safe bound -> Go to FLAT just once
+            elif z > 8.0 and not is_flat:
+                is_flat = True # Update state BEFORE network request
+                print(f"\n✅ [PUTDOWN] Phone returned to safe zone (Z={z:.2f}). Cancelling...")
+                try:
+                    requests.post(f"{PC_URL}/locked", timeout=2)
+                except Exception:
+                    pass
+                    
+        except Exception:
+            pass
+            
+        # 2. Slow it down like it was before
+        time.sleep(0.4)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nExiting...")
