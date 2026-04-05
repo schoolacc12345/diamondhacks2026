@@ -8,8 +8,13 @@ import winsound
 import keyboard
 import webbrowser
 import os
+import logging
 from flask import Flask, jsonify, request
 from dotenv import load_dotenv
+
+# Silence Flask/Werkzeug "GET /arduino_poll" noise
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 # Load credentials from .env file
 load_dotenv()
@@ -28,6 +33,7 @@ SUPABASE_HEADERS = {
 
 # --- NEW: ARDUINO POLLING CACHE ---
 arduino_pending_command = "NONE"
+arduino_poll_count = 0
 
 # Global session trackers
 session_active = False
@@ -280,7 +286,12 @@ def locked():
 
 @app.route('/arduino_poll', methods=['GET'])
 def arduino_poll():
-    global arduino_pending_command
+    global arduino_pending_command, arduino_poll_count
+    
+    arduino_poll_count += 1
+    if arduino_poll_count % 5 == 0:
+        print("📡 [DEBUG] Arduino: Connected & Polling...")
+
     # Arduino asks "What should I do?"
     cmd = arduino_pending_command
     # Clear it so it only does it once
