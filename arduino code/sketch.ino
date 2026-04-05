@@ -3,7 +3,7 @@
 
 Arduino_LED_Matrix matrix;
 
-// ICON: Eye (Webcam Distraction) - Re-aligned to 13-byte stride
+// --- EYE ANIMATION (Webcam) ---
 uint8_t frameEye[104] = {
   0,0,0,1,1,1,1,1,1,1,0,0, 0,
   0,0,1,0,0,0,0,0,0,0,1,0, 0,
@@ -14,8 +14,18 @@ uint8_t frameEye[104] = {
   0,0,1,0,0,0,0,0,0,0,1,0, 0,
   0,0,0,1,1,1,1,1,1,1,0,0, 0
 };
+uint8_t frameEye2[104] = {
+  0,0,0,0,0,0,0,0,0,0,0,0, 0,
+  0,0,0,0,0,0,0,0,0,0,0,0, 0,
+  0,0,0,0,0,0,0,0,0,0,0,0, 0,
+  0,0,0,1,1,1,1,1,1,1,0,0, 0,
+  0,0,0,1,1,1,1,1,1,1,0,0, 0,
+  0,0,0,0,0,0,0,0,0,0,0,0, 0,
+  0,0,0,0,0,0,0,0,0,0,0,0, 0,
+  0,0,0,0,0,0,0,0,0,0,0,0, 0
+};
 
-// ICON: Smartphone (Horizontal) - Re-aligned to 13-byte stride
+// --- PHONE ANIMATION (Horizontal) ---
 uint8_t framePhone[104] = {
   0,0,0,0,0,0,0,0,0,0,0,0, 0,
   0,7,7,7,7,7,7,7,7,7,7,0, 0,
@@ -26,9 +36,18 @@ uint8_t framePhone[104] = {
   0,0,0,0,0,0,0,0,0,0,0,0, 0,
   0,0,0,0,0,0,0,0,0,0,0,0, 0
 };
+uint8_t framePhone2[104] = {
+  0,0,0,0,0,0,0,0,0,0,0,0, 0,
+  0,0,7,7,7,7,7,7,7,7,7,7, 0,
+  0,7,7,0,0,0,0,0,0,0,0,7, 0,
+  0,7,7,0,0,0,0,0,0,0,0,7, 0,
+  0,0,7,7,7,7,7,7,7,7,7,7, 0,
+  0,0,0,0,0,0,0,0,0,0,0,0, 0,
+  0,0,0,0,0,0,0,0,0,0,0,0, 0,
+  0,0,0,0,0,0,0,0,0,0,0,0, 0
+};
 
-
-// ICON: Heart (Focus State) - Re-aligned to 13-byte stride
+// --- HEART ANIMATION (Focus) ---
 uint8_t frameHeart[104] = {
   0,0,7,7,0,0,0,0,7,7,0,0, 0,
   0,7,7,7,7,0,0,7,7,7,7,0, 0,
@@ -39,12 +58,27 @@ uint8_t frameHeart[104] = {
   0,0,0,0,7,7,7,7,0,0,0,0, 0,
   0,0,0,0,0,7,7,0,0,0,0,0, 0
 };
+uint8_t frameHeart2[104] = {
+  0,0,0,0,0,0,0,0,0,0,0,0, 0,
+  0,0,0,7,7,0,0,7,7,0,0,0, 0,
+  0,0,7,7,7,7,7,7,7,7,0,0, 0,
+  0,0,7,7,7,7,7,7,7,7,0,0, 0,
+  0,0,0,7,7,7,7,7,7,0,0,0, 0,
+  0,0,0,0,7,7,7,7,0,0,0,0, 0,
+  0,0,0,0,0,7,7,0,0,0,0,0, 0,
+  0,0,0,0,0,0,0,0,0,0,0,0, 0
+};
 
 uint8_t blankFrame[104] = {0};
 
-String last_drawn_state = "IDLE";
+String current_state = "IDLE";
 const int BUTTON_PIN = 2;
 
+// Animation Control
+unsigned long animation_start = 0;
+bool show_alternate_frame = false;
+
+// Button Control
 unsigned long button_press_start = 0;
 bool button_was_pressed = false;
 bool long_press_triggered = false;
@@ -79,20 +113,27 @@ void loop() {
       }
   }
 
-  String state;
-  bool ok = Bridge.call("get_matrix_state").result(state);
-  if (ok && state != last_drawn_state) {
-      // Unified handling: MOTION is displayed as the PHONE icon
-      if (state == "WEBCAM") {
-          matrix.draw(frameEye);
-      } else if (state == "PHONE" || state == "MOTION") {
-          matrix.draw(framePhone);
-      } else if (state == "FOCUS") {
-          matrix.draw(frameHeart);
-      } else {
-          matrix.draw(blankFrame);
+  // Animation Toggle (every 500ms)
+  if (millis() - animation_start > 500) {
+      show_alternate_frame = !show_alternate_frame;
+      animation_start = millis();
+      
+      // Forces re-draw even if state hasn't changed!
+      String state;
+      bool ok = Bridge.call("get_matrix_state").result(state);
+      if (ok) {
+        if (state == "WEBCAM") {
+            matrix.draw(show_alternate_frame ? frameEye2 : frameEye);
+        } else if (state == "PHONE" || state == "MOTION") {
+            matrix.draw(show_alternate_frame ? framePhone2 : framePhone);
+        } else if (state == "FOCUS") {
+            matrix.draw(show_alternate_frame ? frameHeart2 : frameHeart);
+        } else {
+            matrix.draw(blankFrame);
+        }
+        current_state = state;
       }
-      last_drawn_state = state;
   }
+  
   delay(50);
 }
