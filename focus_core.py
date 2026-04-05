@@ -8,6 +8,7 @@ import winsound
 import keyboard
 import webbrowser
 import os
+from flask import Flask, jsonify
 from dotenv import load_dotenv
 
 # Load credentials from .env file
@@ -65,6 +66,18 @@ def get_lifetime_stats():
         print(f"Stats Error: {e}")
     return 0, 0, 0 
 
+def get_recent_sessions():
+    print("📋 Fetching Last 20 Sessions from Cloud...")
+    try:
+        # Fetching last 20 sessions ordered by ID descending
+        url = f"{SUPABASE_URL}/rest/v1/focus_sessions?select=*&order=id.desc&limit=20"
+        req = requests.get(url, headers=SUPABASE_HEADERS, timeout=5)
+        if req.status_code == 200:
+            return req.json()
+    except Exception as e:
+        print(f"History Error: {e}")
+    return []
+
 def generate_web_dashboard(elapsed_secs, dist_secs, dist_count, snooze_count):
     focus_secs = max(0, elapsed_secs - dist_secs)
     
@@ -91,9 +104,12 @@ def generate_web_dashboard(elapsed_secs, dist_secs, dist_count, snooze_count):
         
         # --- NEW: Historical Injections ---
         life_minutes, life_dist, life_sessions = get_lifetime_stats()
+        history_data = get_recent_sessions()
+        
         html = html.replace("{LIFETIME_MINUTES}", str(life_minutes))
         html = html.replace("{LIFETIME_DISTRACTIONS}", str(life_dist))
         html = html.replace("{SESSION_COUNT}", str(life_sessions))
+        html = html.replace("{SESSION_HISTORY_JSON}", json.dumps(history_data))
         
         output_path = os.path.abspath("session_report.html")
         with open(output_path, 'w', encoding='utf-8') as f:
