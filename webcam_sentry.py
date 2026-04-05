@@ -18,7 +18,7 @@ class WebcamSentry:
         self.distracted_start_time = 0
         self.distraction_threshold = 1.2 # 1.2 second lookaway validation
         
-        self.show_preview = True
+        self.show_preview = False
         self.thread = None
         
         # Initialize detector
